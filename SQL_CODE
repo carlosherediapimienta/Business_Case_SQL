@@ -1,0 +1,106 @@
+-- Creating tables
+
+-- 1: Student – Details for each student 
+CREATE TABLE student (
+    Student_Id CHAR(1),
+    Age_Group VARCHAR(10), -- I assume that this value will have a maximum of 10 characters. 
+    Center_Id CHAR(3), -- I assume that this value will always have 3 characters. 
+    PRIMARY KEY (Student_Id)
+);
+
+-- 2: Center – Details for each center 
+CREATE TABLE center (
+    Center_Id CHAR(3),
+    Center_Name VARCHAR(50),
+    Center_Size INT, -- I assume that is a number
+    Territory_Id CHAR(4),  -- I assume that this value will always have 4 characters. 
+    PRIMARY KEY (Center_Id)
+);
+
+-- 3: Details for each activity completed by a student 
+CREATE TABLE student_activity (
+    Student_Id CHAR(1),
+    Activity_Id CHAR(2),
+    Activity_Type CHAR(1),
+    Date_Completed DATE,
+    PRIMARY KEY (Student_Id, Activity_Id), -- Looking at the data, I've considered that Activity_Id 
+    -- should be a primary key, otherwise the date would be overwritten. 
+    FOREIGN KEY (Student_Id) REFERENCES student(Student_Id) -- I have added it so as not to add any 
+    -- student activity that does not exist, thus avoiding consistency problems. 
+);
+
+-- Insert values:
+
+-- 1: To the student table: 
+INSERT INTO student (Student_Id, Age_Group, Center_Id)
+VALUES 
+    ('A', '18-25', '101'),
+    ('B', '26-35', '101'),
+    ('C', '18-25', '101'),
+    ('D', '36-45', '102'),
+    ('E', '45+', '102');
+
+-- 2: To the center table:
+INSERT INTO center (Center_Id, Center_Name, Center_Size, Territory_Id)
+VALUES 
+    (101, 'Rome1', 200, '1001'),
+    (102, 'Rome2', 250, '1001'),
+    (103, 'Milan', 400, '1001'),
+    (104, 'Florence', 350, '1001'),
+    (105, 'Paris1', 250, '1002');
+
+-- 3: To the Student activity table:
+INSERT INTO student_activity (Student_Id, Activity_Id, Activity_Type, Date_Completed)
+VALUES 
+    ('A', 'X1', 'X', '2022-02-02'),
+    ('A', 'X2', 'X', '2022-02-02'),
+    ('A', 'Y1', 'Y', '2022-02-03'),
+    ('B', 'X1', 'X', '2022-03-05'),
+    ('B', 'X2', 'X', '2022-03-06');
+
+-- First question: How many students do we have per age group?
+SELECT Age_Group, COUNT(*) AS Total_Students 
+    FROM student
+    GROUP BY Age_Group;
+
+-- Second question: How many students do we have per Center?
+SELECT c.Center_Name, COUNT(*) AS Total_Students
+    FROM student s
+    INNER JOIN center c ON s.Center_Id = c.Center_Id
+    GROUP BY s.Center_Id;
+
+-- Thrid question: What were the number of activities completed per Center Name in January 2022?
+-- As I do not have data for January 2022, I will do it for February 2022 to exemplify it. 
+SELECT c.Center_Name, SUM(aux_t.Activities_Completed) as Activities_Completed
+    FROM center c 
+    JOIN (SELECT s.Center_Id, sa.Date_Completed, COUNT(sa.Date_Completed) as Activities_Completed
+    FROM student_activity sa
+    JOIN student s ON sa.Student_Id = s.Student_Id -- We could use INNER JOIN. We use it because
+    -- we rely on master tables (students and centres).
+    WHERE sa.Date_Completed LIKE '2022-02%' -- The "LIKE" command can be problematic when 
+    -- working with a very large database, it is suboptimal, but for what we need it is sufficient. 
+    -- For January simply change 02 to 01.
+    GROUP BY sa.Date_Completed) aux_t on aux_t.Center_Id = c.Center_Id 
+    GROUP BY c.Center_Name;
+
+-- Fourth question: 4.	Using the activity volumes from question 3, what is the number of
+-- Centers per activity ranges 1-100, 101-200, 200+ activities in January 2022?
+-- As before I will do it for February 2022 to contrast it.
+
+SELECT
+    CASE
+        WHEN Activities_Completed BETWEEN 1 AND 100 THEN '1-100'
+        WHEN Activities_Completed BETWEEN 101 AND 200 THEN '101-200'
+        ELSE '200+'
+    END AS Activity_Range,
+    COUNT(*) AS Number_of_Center
+    FROM (SELECT c.Center_Name AS Center_Name, SUM(aux_t.Activities_Completed) as Activities_Completed
+        FROM center c 
+        JOIN (SELECT s.Center_Id, sa.Date_Completed, COUNT(sa.Date_Completed) as Activities_Completed
+        FROM student_activity sa
+        JOIN student s ON sa.Student_Id = s.Student_Id 
+        WHERE sa.Date_Completed LIKE '2022-02%'  -- For January simply change 02 to 01.
+        GROUP BY sa.Date_Completed) aux_t on aux_t.Center_Id = c.Center_Id 
+        GROUP BY c.Center_Name) 
+    GROUP BY Activity_Range
+    ORDER BY Activity_Range;
